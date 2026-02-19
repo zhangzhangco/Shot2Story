@@ -138,10 +138,36 @@ Include license header in new files:
 
 ## Running the Demo
 
+**IMPORTANT**: Agents should NOT run the demo directly. Always ask the user to run it.
+
+The demo is a long-running Gradio web application that requires:
+- User interaction through a web browser
+- Continuous process monitoring
+- Proper proxy/network configuration
+- Manual termination when done
+
+### Demo Command (for user to run)
+
 ```bash
-cd /home/zhangxin/Shot2Story/code
-python demo_video.py
+cd /home/zhangxin/Shot2Story/code && \
+source ~/miniconda3/etc/profile.d/conda.sh && \
+conda activate shot2story && \
+unset all_proxy ALL_PROXY http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
+export PYTHONUNBUFFERED=1 && \
+CUDA_VISIBLE_DEVICES=0 python -u demo_video.py --cfg-path lavis/projects/blip2/eval/demo.yaml
 ```
+
+**What the demo does**:
+1. Loads the VideoMiniGPT4 model (~6GB VRAM)
+2. Starts a Gradio web interface (usually on http://127.0.0.1:7860)
+3. Allows users to upload videos and ask questions
+4. Generates video summaries and answers based on visual content
+
+**Agent responsibilities**:
+- ✅ Prepare code and fix bugs
+- ✅ Provide the command to the user
+- ❌ Do NOT run the demo yourself
+- ❌ Do NOT try to monitor or interact with the running demo
 
 ---
 
