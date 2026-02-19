@@ -215,8 +215,9 @@ def read_video_frames_resized(video_fn, resize_width, resize_height):
     # Process frames
     resized_tensors = []
     for frame in video_data:
-        # Resize frame as tensor
-        resized_frame = torch.from_numpy(frame).permute(2, 0, 1)
+        # Copy frame to make it writable before converting to tensor
+        frame_copy = np.copy(frame)
+        resized_frame = torch.from_numpy(frame_copy).permute(2, 0, 1)
         resized_tensors.append(resized_frame)
 
     return resized_tensors, fps
@@ -615,10 +616,14 @@ class Chat:
 
         # Debug: Check input embeddings quality
         if torch.isnan(embs).any() or torch.isinf(embs).any():
-            print(f"WARNING: NaN/Inf in embeddings! NaN: {torch.isnan(embs).sum()}, Inf: {torch.isinf(embs).sum()}")
+            print(
+                f"WARNING: NaN/Inf in embeddings! NaN: {torch.isnan(embs).sum()}, Inf: {torch.isinf(embs).sum()}"
+            )
             embs = torch.nan_to_num(embs, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        print(f"DEBUG: Input embeddings shape: {embs.shape}, min: {embs.min():.4f}, max: {embs.max():.4f}, mean: {embs.mean():.4f}")
+
+        print(
+            f"DEBUG: Input embeddings shape: {embs.shape}, min: {embs.min():.4f}, max: {embs.max():.4f}, mean: {embs.mean():.4f}"
+        )
 
         outputs = self.model.llama_model.generate(
             inputs_embeds=embs,
@@ -707,10 +712,14 @@ class Chat:
 
         # Debug: Check input embeddings quality
         if torch.isnan(embs).any() or torch.isinf(embs).any():
-            print(f"WARNING: NaN/Inf in embeddings! NaN: {torch.isnan(embs).sum()}, Inf: {torch.isinf(embs).sum()}")
+            print(
+                f"WARNING: NaN/Inf in embeddings! NaN: {torch.isnan(embs).sum()}, Inf: {torch.isinf(embs).sum()}"
+            )
             embs = torch.nan_to_num(embs, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        print(f"DEBUG: Input embeddings shape: {embs.shape}, min: {embs.min():.4f}, max: {embs.max():.4f}, mean: {embs.mean():.4f}")
+
+        print(
+            f"DEBUG: Input embeddings shape: {embs.shape}, min: {embs.min():.4f}, max: {embs.max():.4f}, mean: {embs.mean():.4f}"
+        )
 
         outputs = self.model.llama_model.generate(
             inputs_embeds=embs,
@@ -797,6 +806,15 @@ class Chat:
         self._load_whisper()
 
         dataset = self.dataset
+
+        # Check if dataset is available
+        if dataset is None:
+            raise RuntimeError(
+                "Dataset is required for upload_video_ms_standalone but was not loaded. "
+                "This usually means the annotation files are missing. "
+                "Please ensure dataset files are available or use a simpler upload method."
+            )
+
         self.samples = get_split(
             video,
             self.vis_processor.transform,
