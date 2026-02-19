@@ -144,7 +144,7 @@ def upload_img(gr_img, text_input, chat_state):
 
 def upload_vid(gr_vid, text_input, chat_state, temperature=0.1, input_splits=""):
     if gr_vid is None:
-        return None, None, gr.update(interactive=True), chat_state, None
+        return None, None, None, gr.update(interactive=True), chat_state, None
     chat_state = CONV_VISION_MS.copy()
     if input_splits == "Automatic detection":
         input_splits = ""
@@ -161,6 +161,10 @@ def upload_vid(gr_vid, text_input, chat_state, temperature=0.1, input_splits="")
         max_length=2048,
     )[0][0]
     print(gr_vid, summary)
+
+    # Create chatbot display with the summary
+    chatbot = [["Please describe this video in detail.", summary]]
+
     chat_state = CONV_VISION_MS_TEXT.copy()
     chat_state.append_message(
         chat_state.roles[0],
@@ -168,6 +172,7 @@ def upload_vid(gr_vid, text_input, chat_state, temperature=0.1, input_splits="")
     )
 
     return (
+        chatbot,
         gr.update(interactive=False),
         gr.update(interactive=True, placeholder="Type and press Enter"),
         gr.update(value="Start Chatting", interactive=False),
@@ -354,7 +359,7 @@ with gr.Blocks() as demo:
     upload_button.click(
         upload_vid,
         [video, text_input, chat_state, sum_temperature, input_splits],
-        [video, text_input, upload_button, chat_state, img_list],
+        [chatbot, video, text_input, upload_button, chat_state, img_list],
     )
 
     text_input.submit(
