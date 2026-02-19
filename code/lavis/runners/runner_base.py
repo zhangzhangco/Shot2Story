@@ -1,8 +1,8 @@
 """
- Copyright (c) 2022, salesforce.com, inc.
- All rights reserved.
- SPDX-License-Identifier: BSD-3-Clause
- For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
+Copyright (c) 2022, salesforce.com, inc.
+All rights reserved.
+SPDX-License-Identifier: BSD-3-Clause
+For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
 """
 
 import datetime
@@ -35,15 +35,26 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.data.dataset import ChainDataset, ConcatDataset
 from torch.utils.data import get_worker_info
-from dataloader import KVReader
-def worker_init_fn(_):
-    worker_info = get_worker_info()
-    dataset = worker_info.dataset
-    if isinstance(dataset, ConcatDataset):
-        for sub_dataset in dataset.datasets:
-            sub_dataset.reader = KVReader(sub_dataset.data_root, sub_dataset.num_readers)
-    else:
-        dataset.reader = KVReader(dataset.data_root, dataset.num_readers)
+
+try:
+    from dataloader import KVReader
+
+    def worker_init_fn(_):
+        worker_info = get_worker_info()
+        dataset = worker_info.dataset
+        if isinstance(dataset, ConcatDataset):
+            for sub_dataset in dataset.datasets:
+                sub_dataset.reader = KVReader(
+                    sub_dataset.data_root, sub_dataset.num_readers
+                )
+        else:
+            dataset.reader = KVReader(dataset.data_root, dataset.num_readers)
+except ImportError:
+    # KVReader not available (ByteDance internal dependency)
+    def worker_init_fn(_):
+        pass
+
+
 @registry.register_runner("runner_base")
 class RunnerBase:
     """
@@ -209,8 +220,8 @@ class RunnerBase:
             )
 
             datasets = reorg_datasets_by_split(self.datasets)
-            #datasets['train'] = datasets['train'][0]
-            #self.datasets = datasets
+            # datasets['train'] = datasets['train'][0]
+            # self.datasets = datasets
             self.datasets = concat_datasets(datasets)
 
             # print dataset statistics after concatenation/chaining
@@ -254,7 +265,8 @@ class RunnerBase:
 
             batch_sizes = [
                 self.config.run_cfg.batch_size_train
-                if split == "train" or (len(split.split('_')) > 1 and split.split('_')[1] == 'train')
+                if split == "train"
+                or (len(split.split("_")) > 1 and split.split("_")[1] == "train")
                 else self.config.run_cfg.batch_size_eval
                 for split in split_names
             ]
@@ -276,8 +288,12 @@ class RunnerBase:
 
             self._dataloaders = {k: v for k, v in zip(split_names, dataloaders)}
             for k, v in zip(split_names, dataloaders):
-                if len(k.split('_')) > 1 and k.split('_')[1] in ['train', 'test', 'val']:
-                    self._dataloaders[k.split('_')[1]] = v
+                if len(k.split("_")) > 1 and k.split("_")[1] in [
+                    "train",
+                    "test",
+                    "val",
+                ]:
+                    self._dataloaders[k.split("_")[1]] = v
         return self._dataloaders
 
     @property
@@ -335,7 +351,7 @@ class RunnerBase:
         Set to True to skip training.
         """
         return self.config.run_cfg.evaluate
-    
+
     @property
     def re_evaluate_only(self):
         """
@@ -350,7 +366,7 @@ class RunnerBase:
     @property
     def resume_ckpt_path(self):
         return self.config.run_cfg.get("resume_ckpt_path", None)
-    
+
     @property
     def auto_resume(self):
         return self.config.run_cfg.get("auto_resume", None)
@@ -384,10 +400,18 @@ class RunnerBase:
         self.log_config()
 
         # resume from checkpoint if specified
-        if not self.evaluate_only and (self.resume_ckpt_path is not None or self.auto_resume):
+        if not self.evaluate_only and (
+            self.resume_ckpt_path is not None or self.auto_resume
+        ):
             if self.auto_resume:
-                epochs = [int(osp.basename(ckpt_path_)[:-4].split('_')[1]) for ckpt_path_ in glob.glob(self.output_dir + '/checkpoint_*.pth') if 'best.pth' not in ckpt_path_]
-                self.resume_ckpt_path = self.output_dir + '/checkpoint_{}.pth'.format(max(epochs))
+                epochs = [
+                    int(osp.basename(ckpt_path_)[:-4].split("_")[1])
+                    for ckpt_path_ in glob.glob(self.output_dir + "/checkpoint_*.pth")
+                    if "best.pth" not in ckpt_path_
+                ]
+                self.resume_ckpt_path = self.output_dir + "/checkpoint_{}.pth".format(
+                    max(epochs)
+                )
             metric_load = self._load_checkpoint(self.resume_ckpt_path)
             best_agg_metric = metric_load["best_agg_metric"]
             best_epoch = metric_load["best_epoch"]
@@ -400,9 +424,9 @@ class RunnerBase:
                 self.log_stats(split_name="train", stats=train_stats)
             if self.re_evaluate_only:
                 _resume_ckpt_path = os.path.join(
-                                    self.output_dir,
-                                    f"checkpoint_{cur_epoch}.pth",
-                                )
+                    self.output_dir,
+                    f"checkpoint_{cur_epoch}.pth",
+                )
                 _ = self._load_checkpoint(_resume_ckpt_path)
 
             # evaluation phase
@@ -415,19 +439,33 @@ class RunnerBase:
                     )
                     if val_log is not None:
                         if is_main_process():
-                            assert (
-                                "agg_metrics" in val_log
-                            ), "No agg_metrics found in validation log."
+                            assert "agg_metrics" in val_log, (
+                                "No agg_metrics found in validation log."
+                            )
 
                             agg_metrics = val_log["agg_metrics"]
-                            if agg_metrics > best_agg_metric and (split_name == "val" or split_name.split('_')[1] == 'val'):
+                            if agg_metrics > best_agg_metric and (
+                                split_name == "val" or split_name.split("_")[1] == "val"
+                            ):
                                 best_epoch, best_agg_metric = cur_epoch, agg_metrics
 
-                                metric_save = {"best_agg_metric": best_agg_metric, "agg_metrics": agg_metrics, "best_epoch": best_epoch}
-                                self._save_checkpoint(cur_epoch, is_best=True, metric_save=metric_save)
+                                metric_save = {
+                                    "best_agg_metric": best_agg_metric,
+                                    "agg_metrics": agg_metrics,
+                                    "best_epoch": best_epoch,
+                                }
+                                self._save_checkpoint(
+                                    cur_epoch, is_best=True, metric_save=metric_save
+                                )
                             if not self.re_evaluate_only:
-                                metric_save = {"best_agg_metric": best_agg_metric, "agg_metrics": agg_metrics, "best_epoch": best_epoch}
-                                self._save_checkpoint(cur_epoch, is_best=False, metric_save=metric_save)
+                                metric_save = {
+                                    "best_agg_metric": best_agg_metric,
+                                    "agg_metrics": agg_metrics,
+                                    "best_epoch": best_epoch,
+                                }
+                                self._save_checkpoint(
+                                    cur_epoch, is_best=False, metric_save=metric_save
+                                )
 
                             val_log.update({"best_epoch": best_epoch})
                             self.log_stats(val_log, split_name)
@@ -444,7 +482,10 @@ class RunnerBase:
 
         # testing phase
         test_epoch = "best" if len(self.valid_splits) > 0 else cur_epoch
-        self.evaluate(cur_epoch=test_epoch, skip_reload=(self.evaluate_only or self.re_evaluate_only))
+        self.evaluate(
+            cur_epoch=test_epoch,
+            skip_reload=(self.evaluate_only or self.re_evaluate_only),
+        )
 
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
@@ -519,7 +560,7 @@ class RunnerBase:
             return model.module
         else:
             return model
-                            
+
     def create_loaders(
         self,
         datasets,
@@ -535,10 +576,10 @@ class RunnerBase:
 
         def _create_loader(dataset, num_workers, bsz, is_train, collate_fn):
             # create a single dataloader for each split
-            print('dataset', dataset)
-            print('num workers', num_workers)
-            print('batchsize', bsz)
-            print('collate_fn', collate_fn)
+            print("dataset", dataset)
+            print("num workers", num_workers)
+            print("batchsize", bsz)
+            print("collate_fn", collate_fn)
             sys.stdout.flush()
             if isinstance(dataset, ChainDataset) or isinstance(
                 dataset, wds.DataPipeline
@@ -553,7 +594,7 @@ class RunnerBase:
                         pin_memory=True,
                     )
                 )
-            elif getattr(dataset, 'data_type',None) == 'hdfs':
+            elif getattr(dataset, "data_type", None) == "hdfs":
                 sampler = HDFSDistributedSampler(
                     dataset,
                     batch_size=bsz,
@@ -566,7 +607,6 @@ class RunnerBase:
                     batch_size=None,
                     shuffle=False,
                     sampler=sampler,
-
                     num_workers=num_workers,
                     pin_memory=True,
                     worker_init_fn=worker_init_fn,
@@ -700,13 +740,13 @@ class RunnerBase:
 
         self.start_epoch = checkpoint["epoch"] + 1
         logging.info("Resume checkpoint from {}".format(url_or_filename))
-        
+
         if "best_agg_metric" in checkpoint:
             best_agg_metric = checkpoint["best_agg_metric"]
             best_epoch = checkpoint["best_epoch"]
         else:
-            best_agg_metric = 0. 
-            best_epoch = 0. 
+            best_agg_metric = 0.0
+            best_epoch = 0.0
         return {"best_agg_metric": best_agg_metric, "best_epoch": best_epoch}
 
     @main_process
