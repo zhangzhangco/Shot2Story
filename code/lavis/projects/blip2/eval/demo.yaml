@@ -12,9 +12,8 @@ model:
   prompt_path: "prompts/alignment_av.txt"
   prompt_template: '###Human: {} ###Assistant: '
   num_query_token: 32
-  ckpt: "CHECKPOINT_DOWNLOADED_FROM_HUGGINGFACE"
-  # Vicuna
-  llama_model: "YOUR_VICUNA_7B_DIR"
+  ckpt: "/home/zhangxin/Shot2Story/code/pretrain/20k-version/sum_shot_best_epoch.pth"
+  llama_model: "/mnt/data/Shot2Story/vicuna-7b-v0"
   visual_target: True
   audio_target: False
   asr_audio: True
