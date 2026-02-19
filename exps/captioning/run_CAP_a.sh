@@ -1,44 +1,42 @@
 #!/bin/bash 
 set -x 
-# THIS_DIR="$( cd "$( dirname "$0" )" && pwd )"
-# cd $THIS_DIR
+
+# Set project directory
+S2S_DIR="/home/zhangxin/Shot2Story"
+cd $S2S_DIR/code
+
+# Setup cache (only if needed)
+if [ ! -d ~/.cache/huggingface ]; then
+    echo "Extracting BLIP cache..."
+    cp ${S2S_DIR}/code/pretrain/BLIP.cache.tar ~/
+    cd ~/
+    tar xf BLIP.cache.tar
+    cd -
+fi
+
+# Set environment variables
+CONDA_ENV_DIR="/home/zhangxin/miniconda3"
+NGPUS=${WORKER_GPU:-1}
+WORKER_NUM=${WORKER_NUM:-1}
+WORKER_ID=${WORKER_ID:-0}
+WORKER_0_HOST=${WORKER_0_HOST:-localhost}
+WORKER_0_PORT=${WORKER_0_PORT:-29500}
 
 ports=(${WORKER_0_PORT//,/ })
 port=${ports[0]}
 
-S2S_DIR="YOUR_S2S_DIR"
-cd $S2S_DIR/code
-
-#get data
-sudo mkdir -p /export/home/.cache/
-sudo chmod a+w /export/home/.cache
-cd /export/home/.cache/
-ln -s ${S2S_DIR}/data lavis
-cd -
-
-
-# You can zip the cache folder and copy it to the worker node. Please be aware this should comply with the usage license of the checkpoint providers.
-rm -r ~/.cache
-cp ${S2S_DIR}/envs/BLIP.cache.tar ~/
-cd ~/
-tar xf BLIP.cache.tar
-cd -
-
-
-cd $THIS_DIR
-
-CONDA_ENV_DIR="YOUR_CONDA_ENV_DIR"
-NGPUS=$WORKER_GPU
 CONFIG=lavis/projects/blip2/train/minigpt4_train_audio.yaml
 
 $CONDA_ENV_DIR/envs/shot2story/bin/python -m torch.distributed.run --nproc_per_node=$NGPUS --nnode=$WORKER_NUM --node_rank=$WORKER_ID --master_addr=$WORKER_0_HOST --master_port=$port train.py \
-train.py --cfg-path $CONFIG \
+--cfg-path $CONFIG \
 --options model.asr_audio=True \
 model.visual_target=False \
 model.audio_target=True \
 run.batch_size_train=4 \
 run.batch_size_eval=8 \
 run.warmup_steps=200 \
+model.llama_model="/mnt/data/Shot2Story/vicuna-7b-v0" \
+model.ckpt="${S2S_DIR}/code/pretrain/20k-version/single_shot_audio_av.pth" \
 model.prompt_path=prompts/alignment_audio.txt \
 model.question_prompt="'The audio transcripts are: {asr}. Describe the audio content of this video in detail.'" \
 model.answer_prompt="''" $@

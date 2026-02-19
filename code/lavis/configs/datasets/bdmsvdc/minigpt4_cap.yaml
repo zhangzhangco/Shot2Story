@@ -19,4 +19,4 @@ datasets:
         20k_test:
           storage: annotations/20k_test.json
       videos:
-        storage: videos
+        storage: videos_full/release_134k_videos
