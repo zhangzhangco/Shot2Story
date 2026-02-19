@@ -152,23 +152,31 @@ def upload_vid(gr_vid, text_input, chat_state, temperature=0.1, input_splits="")
     llm_message = chat.upload_video_ms_standalone(
         gr_vid, chat_state, img_list, input_splits=input_splits
     )
-    chat.ask("Please describe this video in detail.", chat_state)
-    summary = chat.answer(
+
+    # Use user's question from text_input, or default question if empty
+    user_question = (
+        text_input
+        if text_input and len(text_input.strip()) > 0
+        else "Please describe this video in detail."
+    )
+
+    chat.ask(user_question, chat_state)
+    answer = chat.answer(
         conv=chat_state,
         num_beams=1,
         temperature=temperature,
         max_new_tokens=650,
         max_length=2048,
     )[0][0]
-    print(gr_vid, summary)
+    print(gr_vid, user_question, answer)
 
-    # Create chatbot display with the summary
-    chatbot = [["Please describe this video in detail.", summary]]
+    # Create chatbot display with user's actual question and answer
+    chatbot = [[user_question, answer]]
 
     chat_state = CONV_VISION_MS_TEXT.copy()
     chat_state.append_message(
         chat_state.roles[0],
-        f"The video content is: {summary}\n\nYou should answer the question concisely. Based on the video, please answer ",
+        f"The video content is: {answer}\n\nYou should answer the question concisely. Based on the video, please answer ",
     )
 
     return (
@@ -306,8 +314,8 @@ with gr.Blocks() as demo:
             chatbot = gr.Chatbot(label="SUM-shot")
             text_input = gr.Textbox(
                 label="User",
-                placeholder="Please upload your image first",
-                interactive=False,
+                placeholder="Enter your question about the video",
+                interactive=True,
             )
             clear_hist = gr.Button("Clear history")
 
